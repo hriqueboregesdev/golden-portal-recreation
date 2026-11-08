@@ -87,7 +87,14 @@ renderer.toneMapping = THREE.ACESFilmicToneMapping;
 
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x050308);
-scene.fog = new THREE.Fog(0x050308, 8, 26);
+scene.fog = new THREE.Fog(0x050308, 10, 45);
+scene.add(new THREE.HemisphereLight(0x553a55, 0x0a0510, 1.6));
+const key = new THREE.DirectionalLight(0xff8866, 1.1);
+key.position.set(-6, 8, -4);
+scene.add(key);
+const fill = new THREE.DirectionalLight(0x8899ff, .35);
+fill.position.set(6, 3, 6);
+scene.add(fill);
 
 const camera = new THREE.PerspectiveCamera(55, innerWidth/innerHeight, .1, 60);
 camera.position.set(0, 1.1, 7.5);
@@ -100,18 +107,35 @@ camera.position.set(0, 1.1, 7.5);
   rad.addColorStop(0,'rgba(255,70,30,.9)'); rad.addColorStop(1,'rgba(255,70,30,0)');
   g.fillStyle = rad; g.fillRect(0,0,256,256);
   const tex = new THREE.CanvasTexture(c);
-  const spr = new THREE.Sprite(new THREE.SpriteMaterial({ map:tex, blending:THREE.AdditiveBlending, opacity:.5, depthWrite:false }));
-  spr.position.set(-14, 9, -18); spr.scale.set(26, 26, 1);
+  const spr = new THREE.Sprite(new THREE.SpriteMaterial({ map:tex, blending:THREE.AdditiveBlending, opacity:.3, depthWrite:false }));
+  spr.position.set(-18, 11, -22); spr.scale.set(22, 22, 1);
   scene.add(spr);
 }
 
 // flower field
 const COLORS = [0xff3b3b, 0xe0409a, 0xff7ab8, 0x4a5cff, 0x8b5cf6];
-const COUNT = 680;
+const COUNT = 900;
 const field = new THREE.Group(); scene.add(field);
 const flowers = [];
 const stemGeo = new THREE.CylinderGeometry(.012, .02, 1, 5);
-const petalGeo = new THREE.SphereGeometry(1, 10, 8);
+const petalTex = (() => {
+  const c = document.createElement('canvas'); c.width = 128; c.height = 256;
+  const g = c.getContext('2d');
+  // pétala em formato de gota alongada (base estreita no topo y=0, ponta larga embaixo? -> base no centro da flor)
+  g.beginPath();
+  g.moveTo(64, 8);
+  g.bezierCurveTo(118, 60, 126, 160, 64, 248);
+  g.bezierCurveTo(2, 160, 10, 60, 64, 8);
+  g.closePath();
+  const grd = g.createRadialGradient(64, 150, 10, 64, 150, 140);
+  grd.addColorStop(0, '#ffffff');
+  grd.addColorStop(.55, '#d9d9d9');
+  grd.addColorStop(1, '#7a7a7a');
+  g.fillStyle = grd; g.fill();
+  const tex = new THREE.CanvasTexture(c);
+  return tex;
+})();
+const petalGeo = new THREE.PlaneGeometry(.34, .68);
 const glowTex = (() => {
   const c = document.createElement('canvas'); c.width = c.height = 128;
   const g = c.getContext('2d');
@@ -124,38 +148,38 @@ const glowTex = (() => {
 for (let i=0;i<COUNT;i++) {
   const grp = new THREE.Group();
   // distribute: dense near camera center, sparse far
-  const r = Math.pow(Math.random(), .7) * 16;
+  const r = Math.pow(Math.random(), .7) * 10;
   const a = Math.random() * Math.PI * 2;
-  grp.position.set(Math.cos(a)*r, 0, Math.sin(a)*r - 4);
-  if (grp.position.z > 6.5) grp.position.z = 6.5 - Math.random()*3;
-  const h = .6 + Math.random() * 1.7;
+  grp.position.set(Math.cos(a)*r, 0, Math.sin(a)*r - 5);
+  if (grp.position.z > 4) grp.position.z = 4 - Math.random()*3;
+  const h = .5 + Math.random() * 1.6;
   const col = new THREE.Color(COLORS[i % COLORS.length]).offsetHSL((Math.random()-.5)*.05, 0, (Math.random()-.5)*.08);
-  grp.scale.setScalar(.7 + Math.random()*.9);
+  grp.scale.setScalar(.8 + Math.random()*.8);
 
   const stem = new THREE.Mesh(stemGeo, new THREE.MeshStandardMaterial({ color:0x0d0a12, roughness:1 }));
   stem.scale.set(1, h, 1); stem.position.y = h/2;
   grp.add(stem);
 
   const head = new THREE.Group(); head.position.y = h;
-  head.rotation.x = (Math.random()-.5)*.5;
-  const petalMat = new THREE.MeshStandardMaterial({ color:col, roughness:.85, metalness:0, side:THREE.DoubleSide });
+  head.rotation.x = -.3 + (Math.random()-.5)*.25; // face slightly toward camera
+  const petalMat = new THREE.MeshStandardMaterial({ color:col, roughness:.85, metalness:0, side:THREE.DoubleSide, map:petalTex, alphaMap:petalTex, transparent:true, alphaTest:.4, emissive:col, emissiveIntensity:.3 });
   const petalCount = 5 + (i % 3);
   const petals = [];
   for (let p=0;p<petalCount;p++) {
     const petal = new THREE.Mesh(petalGeo, petalMat);
-    petal.scale.set(.2, .045, .55);
+    // pétala plana com silhueta de pétala, irradiando radialmente do centro (vista frontal)
     const ang = (p/petalCount) * Math.PI*2;
-    petal.position.set(Math.cos(ang)*.14, .02, Math.sin(ang)*.14);
-    petal.rotation.y = -ang;
-    petal.rotation.x = .5 + Math.random()*.3; // open upward-ish
+    petal.position.set(Math.cos(ang)*.3, Math.sin(ang)*.3, 0);
+    petal.rotation.z = ang - Math.PI/2;      // eixo longo (Y local) aponta para fora
+    petal.rotation.y = (Math.random()-.5)*.5; // leve concha
     petal.userData.delay = p * .05;
     head.add(petal); petals.push(petal);
   }
-  const core = new THREE.Mesh(new THREE.SphereGeometry(.055, 10, 10),
-    new THREE.MeshStandardMaterial({ color:0xffb347, emissive:0xff9a2e, emissiveIntensity:2.6 }));
-  core.position.y = .06;
-  const glow = new THREE.Sprite(new THREE.SpriteMaterial({ map:glowTex, blending:THREE.AdditiveBlending, opacity:.8, depthWrite:false }));
-  glow.scale.set(.5,.5,1); glow.position.y = .06;
+  const core = new THREE.Mesh(new THREE.SphereGeometry(.075, 10, 10),
+    new THREE.MeshStandardMaterial({ color:0xffb347, emissive:0xff9a2e, emissiveIntensity:2.6, fog:false }));
+  core.position.z = .04;
+  const glow = new THREE.Sprite(new THREE.SpriteMaterial({ map:glowTex, color:col.clone().lerp(new THREE.Color(0xffcc66), .35), blending:THREE.AdditiveBlending, opacity:.55, depthWrite:false, fog:false }));
+  glow.scale.set(.55,.55,1); glow.position.z = .04;
   head.add(core, glow);
   grp.add(head);
   field.add(grp);
