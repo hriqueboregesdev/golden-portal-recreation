@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Apogee — Golden Portal recreation</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600&family=Inter:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  html, body { height:100%; overflow:hidden; background:#050308; }
+  body { font-family:'Inter', sans-serif; color:#f5f1ea; -webkit-font-smoothing:antialiased; }
+  #scene { position:fixed; inset:0; z-index:0; }
+  .ui { position:fixed; inset:0; z-index:2; pointer-events:none; display:flex; flex-direction:column; }
+  header { display:flex; align-items:center; justify-content:space-between; padding:26px 40px; pointer-events:none; }
+  header > * { pointer-events:auto; }
+  .brand { display:flex; align-items:center; gap:10px; font-family:'Cormorant Garamond', serif; font-size:24px; letter-spacing:.02em; }
+  .brand svg { width:22px; height:22px; }
+  .menu-wrap { display:flex; align-items:center; gap:18px; }
+  .menu-btn { display:flex; align-items:center; gap:10px; font-size:13px; color:#f5f1ea; background:none; border:0; cursor:pointer; font-family:inherit; }
+  .menu-btn .bars { display:flex; flex-direction:column; gap:4px; }
+  .menu-btn .bars span { width:18px; height:1.5px; background:#f5f1ea; display:block; }
+  .pill { display:inline-flex; align-items:center; gap:8px; border-radius:999px; padding:10px 20px; font-size:13px; cursor:pointer; text-decoration:none; transition:background .35s, color .35s, border-color .35s; font-family:inherit; }
+  .pill.solid { background:rgba(245,241,234,.14); color:#f5f1ea; border:1px solid rgba(245,241,234,.18); backdrop-filter:blur(8px); }
+  .pill.solid:hover { background:rgba(245,241,234,.24); }
+  .pill.ghost { background:transparent; color:#f5f1ea; border:1px solid rgba(245,241,234,.3); }
+  .pill.ghost:hover { border-color:rgba(245,241,234,.6); }
+  .hero { flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; padding:0 24px; }
+  h1 { font-family:'Cormorant Garamond', serif; font-weight:500; font-size:clamp(2.4rem, 7vw, 6.2rem); line-height:1.04; letter-spacing:-.01em; }
+  .line { overflow:hidden; }
+  .line span { display:block; transform:translateY(110%); }
+  .sub { margin-top:26px; font-size:15px; line-height:1.6; color:#b8b2a8; max-width:420px; opacity:0; transform:translateY(14px); }
+  .cta { margin-top:34px; pointer-events:auto; }
+  .hud { position:fixed; right:28px; bottom:22px; z-index:2; font-size:10px; letter-spacing:.2em; text-transform:uppercase; color:#f5f1ea; opacity:.5; font-family:ui-monospace, monospace; text-align:right; line-height:1.7; }
+  @media (max-width: 720px) {
+    header { padding:18px 20px; }
+    .pill.ghost { display:none; }
+    .hud { display:none; }
+  }
+</style>
+</head>
+<body>
+<canvas id="scene"></canvas>
+<div class="ui">
+  <header>
+    <div class="brand">
+      <svg viewBox="0 0 24 24" fill="none" stroke="#f5f1ea" stroke-width="1.6"><path d="M4 12h6l2-5 2 10 2-5h4"/></svg>
+      Apogee
+    </div>
+    <div class="menu-wrap">
+      <button class="menu-btn"><span class="bars"><span></span><span></span></span>Menu</button>
+      <a class="pill solid" href="#">Book a demo</a>
+    </div>
+    <a class="pill ghost" href="#">Find out more</a>
+  </header>
+  <div class="hero">
+    <h1>
+      <div class="line"><span>Ascend beyond limits</span></div>
+      <div class="line"><span>with intelligent</span></div>
+      <div class="line"><span>predictive infrastructure</span></div>
+    </h1>
+    <p class="sub">Advanced reasoning systems and predictive models built for the unknown</p>
+    <div class="cta"><a class="pill solid" href="#">Discover the Core <span>&rarr;</span></a></div>
+  </div>
+</div>
+<div class="hud">51.9245&deg; N &mdash; APOGEE.CORE<br>v2.4.1 &middot; SIGNAL STABLE</div>
+
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+} }
+</script>
+<script type="module">
+import * as THREE from 'three';
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+
+const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
+const canvas = document.getElementById('scene');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias:true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 1.5));
+renderer.setSize(innerWidth, innerHeight);
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x050308);
+scene.fog = new THREE.Fog(0x050308, 8, 26);
+
+const camera = new THREE.PerspectiveCamera(55, innerWidth/innerHeight, .1, 60);
+camera.position.set(0, 1.1, 7.5);
+
+// warm distant glow, top-left
+{
+  const c = document.createElement('canvas'); c.width = c.height = 256;
+  const g = c.getContext('2d');
+  const rad = g.createRadialGradient(128,128,0,128,128,128);
+  rad.addColorStop(0,'rgba(255,70,30,.9)'); rad.addColorStop(1,'rgba(255,70,30,0)');
+  g.fillStyle = rad; g.fillRect(0,0,256,256);
+  const tex = new THREE.CanvasTexture(c);
+  const spr = new THREE.Sprite(new THREE.SpriteMaterial({ map:tex, blending:THREE.AdditiveBlending, opacity:.5, depthWrite:false }));
+  spr.position.set(-14, 9, -18); spr.scale.set(26, 26, 1);
+  scene.add(spr);
+}
+
+// flower field
+const COLORS = [0xff3b3b, 0xe0409a, 0xff7ab8, 0x4a5cff, 0x8b5cf6];
+const COUNT = 680;
+const field = new THREE.Group(); scene.add(field);
+const flowers = [];
+const stemGeo = new THREE.CylinderGeometry(.012, .02, 1, 5);
+const petalGeo = new THREE.SphereGeometry(1, 10, 8);
+const glowTex = (() => {
+  const c = document.createElement('canvas'); c.width = c.height = 128;
+  const g = c.getContext('2d');
+  const rad = g.createRadialGradient(64,64,0,64,64,64);
+  rad.addColorStop(0,'rgba(255,190,110,.9)'); rad.addColorStop(.4,'rgba(255,140,60,.35)'); rad.addColorStop(1,'rgba(255,140,60,0)');
+  g.fillStyle = rad; g.fillRect(0,0,128,128);
+  return new THREE.CanvasTexture(c);
+})();
+
+for (let i=0;i<COUNT;i++) {
+  const grp = new THREE.Group();
+  // distribute: dense near camera center, sparse far
+  const r = Math.pow(Math.random(), .7) * 16;
+  const a = Math.random() * Math.PI * 2;
+  grp.position.set(Math.cos(a)*r, 0, Math.sin(a)*r - 4);
+  if (grp.position.z > 6.5) grp.position.z = 6.5 - Math.random()*3;
+  const h = .6 + Math.random() * 1.7;
+  const col = new THREE.Color(COLORS[i % COLORS.length]).offsetHSL((Math.random()-.5)*.05, 0, (Math.random()-.5)*.08);
+  grp.scale.setScalar(.7 + Math.random()*.9);
+
+  const stem = new THREE.Mesh(stemGeo, new THREE.MeshStandardMaterial({ color:0x0d0a12, roughness:1 }));
+  stem.scale.set(1, h, 1); stem.position.y = h/2;
+  grp.add(stem);
+
+  const head = new THREE.Group(); head.position.y = h;
+  head.rotation.x = (Math.random()-.5)*.5;
+  const petalMat = new THREE.MeshStandardMaterial({ color:col, roughness:.85, metalness:0, side:THREE.DoubleSide });
+  const petalCount = 5 + (i % 3);
+  const petals = [];
+  for (let p=0;p<petalCount;p++) {
+    const petal = new THREE.Mesh(petalGeo, petalMat);
+    petal.scale.set(.2, .045, .55);
+    const ang = (p/petalCount) * Math.PI*2;
+    petal.position.set(Math.cos(ang)*.14, .02, Math.sin(ang)*.14);
+    petal.rotation.y = -ang;
+    petal.rotation.x = .5 + Math.random()*.3; // open upward-ish
+    petal.userData.delay = p * .05;
+    head.add(petal); petals.push(petal);
+  }
+  const core = new THREE.Mesh(new THREE.SphereGeometry(.055, 10, 10),
+    new THREE.MeshStandardMaterial({ color:0xffb347, emissive:0xff9a2e, emissiveIntensity:2.6 }));
+  core.position.y = .06;
+  const glow = new THREE.Sprite(new THREE.SpriteMaterial({ map:glowTex, blending:THREE.AdditiveBlending, opacity:.8, depthWrite:false }));
+  glow.scale.set(.5,.5,1); glow.position.y = .06;
+  head.add(core, glow);
+  grp.add(head);
+  field.add(grp);
+  flowers.push({ grp, head, petals, phase: Math.random()*Math.PI*2, speed: .6+Math.random()*.8, delay: Math.random()*1.6 });
+}
+
+// pollen particles
+const PCOUNT = 220;
+const pGeo = new THREE.BufferGeometry();
+const pPos = new Float32Array(PCOUNT*3), pSeed = [];
+for (let i=0;i<PCOUNT;i++) {
+  pPos[i*3] = (Math.random()-.5)*20;
+  pPos[i*3+1] = Math.random()*6;
+  pPos[i*3+2] = (Math.random()-.5)*16 - 2;
+  pSeed.push(Math.random());
+}
+pGeo.setAttribute('position', new THREE.BufferAttribute(pPos, 3));
+const points = new THREE.Points(pGeo, new THREE.PointsMaterial({
+  color:0xffc37a, size:.045, transparent:true, opacity:.75,
+  blending:THREE.AdditiveBlending, depthWrite:false, map:glowTex }));
+scene.add(points);
+
+// bloom
+const composer = new EffectComposer(renderer);
+composer.addPass(new RenderPass(scene, camera));
+const bloom = new UnrealBloomPass(new THREE.Vector2(innerWidth, innerHeight), .65, .55, .22);
+composer.addPass(bloom);
+
+// bloom-in entrance: petals scale from 0
+const start = performance.now();
+function entrance() {
+  const t = (performance.now() - start) / 1000;
+  for (const f of flowers) {
+    const local = Math.max(0, t - .6 - f.delay) / 2.6; // back flowers first? delay sorted by distance
+    const e = 1 - Math.pow(1 - Math.min(local,1), 3); // expo.out-ish
+    f.head.scale.setScalar(Math.max(.01, e));
+  }
+  return t > 5;
+}
+// sort delays: far (negative z) first
+flowers.forEach(f => { f.delay = (f.grp.position.z + 8) / 12 + Math.random()*.4; });
+
+let mouse = { x:0, y:0 };
+if (matchMedia('(pointer:fine)').matches && !reduceMotion) {
+  addEventListener('mousemove', e => {
+    mouse.x = (e.clientX/innerWidth - .5) * 2;
+    mouse.y = (e.clientY/innerHeight - .5) * 2;
+  });
+}
+
+const camStartZ = 8.1, camEndZ = 7.3;
+function animate(now) {
+  const t = (now - start) / 1000;
+  const still = reduceMotion;
+  if (!entranceDone) entranceDone = entrance();
+  // camera push-in
+  if (!still) {
+    const k = Math.min(t/6, 1);
+    const ease = 1 - Math.pow(1-k, 3);
+    camera.position.z = camStartZ + (camEndZ - camStartZ) * ease;
+    camera.position.x = Math.sin(t*.15)*.25 + mouse.x*.5;
+    camera.position.y = 1.1 + Math.cos(t*.11)*.08 - mouse.y*.3;
+    camera.lookAt(0, 1.0, -4);
+  } else {
+    camera.position.set(0, 1.1, camEndZ);
+    camera.lookAt(0, 1.0, -4);
+  }
+  // sway
+  for (const f of flowers) {
+    if (!still) f.grp.rotation.z = Math.sin(t*f.speed + f.phase) * .06;
+  }
+  // pollen rise
+  if (!still) {
+    const pos = pGeo.attributes.position;
+    for (let i=0;i<PCOUNT;i++) {
+      let y = pos.getY(i) + .004 + pSeed[i]*.004;
+      if (y > 6.5) y = 0;
+      pos.setY(i, y);
+      pos.setX(i, pos.getX(i) + Math.sin(t*.5 + pSeed[i]*10) * .0012);
+    }
+    pos.needsUpdate = true;
+  }
+  composer.render();
+  requestAnimationFrame(animate);
+}
+let entranceDone = false;
+requestAnimationFrame(animate);
+
+addEventListener('resize', () => {
+  camera.aspect = innerWidth/innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight);
+  composer.setSize(innerWidth, innerHeight);
+});
+
+// text entrance via GSAP
+const gsapScript = document.createElement('script');
+gsapScript.src = 'https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/gsap.min.js';
+gsapScript.onload = () => {
+  if (reduceMotion) {
+    gsap.set('.line span', { y:0 });
+    gsap.set('.sub', { opacity:1, y:0 });
+    return;
+  }
+  gsap.to('.line span', { y:0, duration:1.1, ease:'power4.out', stagger:.09, delay:1.2 });
+  gsap.to('.sub', { opacity:1, y:0, duration:.9, ease:'power3.out', delay:2.1 });
+};
+document.head.appendChild(gsapScript);
+</script>
+</body>
+</html>
